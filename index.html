@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AquaFarm V7.2 — إدارة ومحاسبة المزرعة</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7f9;color:#17212b;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif}
+header{background:#0d5c75;color:white;padding:18px 16px;position:sticky;top:0;z-index:5}header h1{margin:0;font-size:22px}header small{opacity:.85}
+nav{display:flex;gap:7px;overflow:auto;padding:9px;background:white;border-bottom:1px solid #dce4e8;position:sticky;top:72px;z-index:4}nav button{white-space:nowrap;border:1px solid #cbd7dd;background:#fff;border-radius:9px;padding:9px 11px}
+nav button.active{background:#0d5c75;color:#fff}.wrap{max-width:1200px;margin:auto;padding:14px}.view{display:none}.view.active{display:block}
+.card{background:#fff;border:1px solid #dde5e9;border-radius:14px;padding:15px;margin:10px 0;box-shadow:0 1px 3px #0000000b}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}.metric{font-size:25px;font-weight:700}.muted{color:#667781;font-size:13px}
+label{display:block;font-size:13px;color:#45545d;margin:7px 0 4px}input,select,textarea{width:100%;padding:10px;border:1px solid #cbd7dd;border-radius:8px;background:white;font-size:15px}textarea{min-height:70px}
+button.primary{background:#0d5c75;color:#fff;border:0;border-radius:8px;padding:10px 14px}button.danger{background:#a72b2b;color:#fff;border:0;border-radius:8px;padding:8px 11px}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid #e5eaed;text-align:right}th{background:#f5f8f9}.ok{color:#18733d}.warn{color:#9b6511}.bad{color:#a72b2b}
+details{border:1px solid #dbe4e8;border-radius:9px;padding:9px;margin:6px 0}summary{cursor:pointer;font-weight:600}
+.toast{position:fixed;bottom:18px;left:18px;right:18px;max-width:480px;margin:auto;background:#17212b;color:#fff;padding:12px;border-radius:10px;display:none;z-index:20}
+@media(min-width:800px){.formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.span2{grid-column:span 2}.span3{grid-column:span 3}}
+</style>
+
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0d5c75">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="AquaFarm">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+
+</head>
+<body>
+<header><h1>🐟 AquaFarm V7</h1><small>إدارة المزرعة + التكاليف + محاسبة القيد المزدوج</small></header>
+<nav id="nav">
+<button data-v="home">الرئيسية</button><button data-v="farm">المزرعة</button><button data-v="cycles">الدورات</button>
+<button data-v="inventory">المخزون والأعلاف</button><button data-v="expenses">المصروفات</button><button data-v="production">الإنتاج والنفوق والحصاد</button>
+<button data-v="sales">المبيعات</button><button data-v="journal">القيود اليومية</button><button data-v="coa">شجرة الحسابات</button>
+<button data-v="reports">التقارير</button><button data-v="v5">محاسبة متقدمة</button><button data-v="backup">النسخ الاحتياطي</button>
+</nav>
+<div class="wrap">
+
+<section id="home" class="view active">
+<div class="grid" id="metrics"></div>
+<div class="card"><h3>ملخص سريع</h3><div id="homeText" class="muted"></div></div>
+</section>
+
+<section id="farm" class="view">
+<div class="card"><h2>بيانات المزرعة والأحواض</h2>
+<div class="formgrid"><div><label>اسم المزرعة</label><input id="farmName"></div><div><label>العملة</label><input id="currency" value="جنيه"></div></div>
+<button class="primary" onclick="saveFarm()">حفظ</button></div>
+<div class="card"><h3>إضافة حوض</h3><div class="formgrid"><div><label>اسم/رقم الحوض</label><input id="pondName"></div><div><label>المساحة م²</label><input id="pondArea" type="number"></div><div><label>العمق م</label><input id="pondDepth" type="number"></div></div><button class="primary" onclick="addPond()">إضافة</button></div>
+<div class="card"><h3>الأحواض</h3><div id="ponds"></div></div>
+</section>
+
+<section id="cycles" class="view">
+<div class="card"><h2>الدورات الإنتاجية</h2>
+<div class="formgrid"><div><label>اسم الدورة</label><input id="cyName"></div><div><label>الحوض</label><select id="cyPond"></select></div><div><label>النوع</label><input id="cySpecies" value="بلطي"></div>
+<div><label>تاريخ البداية</label><input id="cyStart" type="date"></div><div><label>عدد الزريعة</label><input id="cyCount" type="number"></div><div><label>متوسط وزن البداية (جم)</label><input id="cyAvgW" type="number"></div>
+<div><label>تكلفة الزريعة</label><input id="cyFingerCost" type="number"></div><div><label>الكمية المتوقع بيعها كجم</label><input id="cyExpectedKg" type="number"></div><div><label>سعر البيع المستهدف/كجم</label><input id="cyTargetPrice" type="number"></div></div>
+<button class="primary" onclick="addCycle()">حفظ الدورة</button></div><div class="card"><div id="cyclesTable"></div></div>
+</section>
+
+<section id="inventory" class="view">
+<div class="card"><h2>المخزون والأعلاف</h2><p class="muted">المشتريات تزيد المخزون بتكلفة مرجحة، والصرف للدورة ينقص المخزون ويُحمّل تكلفة الدورة تلقائياً.</p>
+<div class="formgrid"><div><label>اسم الصنف</label><input id="prodName"></div><div><label>الوحدة</label><input id="prodUnit" value="كجم"></div><div><label>رصيد افتتاحي</label><input id="prodOpenQty" type="number"></div><div><label>تكلفة الافتتاح/وحدة</label><input id="prodOpenCost" type="number"></div></div><button class="primary" onclick="addProduct()">إضافة صنف</button></div>
+<div class="card"><h3>شراء مخزون</h3><div class="formgrid"><div><label>الصنف</label><select id="purProd"></select></div><div><label>الكمية</label><input id="purQty" type="number"></div><div><label>سعر الوحدة</label><input id="purPrice" type="number"></div><div><label>المورد</label><input id="purSupplier"></div><div><label>طريقة الدفع</label><select id="purPay"><option value="cash">نقدي</option><option value="credit">آجل</option></select></div></div><button class="primary" onclick="addPurchase()">تسجيل شراء</button></div>
+<div class="card"><h3>صرف علف/مخزون للدورة والحوض</h3><div class="formgrid"><div><label>الصنف</label><select id="issProd"></select></div><div><label>الدورة</label><select id="issCycle"></select></div><div><label>الكمية</label><input id="issQty" type="number"></div></div><button class="primary" onclick="issueStock()">تسجيل الصرف</button></div>
+<div class="card"><div id="inventoryTable"></div></div></section>
+
+<section id="expenses" class="view">
+<div class="card"><h2>المصروفات</h2><div class="formgrid"><div><label>نوع المصروف</label><input id="exName" placeholder="كهرباء، وقود، صيانة..."></div><div><label>القيمة</label><input id="exAmount" type="number"></div><div><label>التخصيص</label><select id="exType"><option value="general">مصروف مشترك/عمومي</option><option value="cycle">مباشر لدورة</option></select></div><div><label>الدورة عند التخصيص</label><select id="exCycle"></select></div><div><label>طريقة الدفع</label><select id="exPay"><option value="cash">نقدي</option><option value="credit">آجل</option></select></div><div><label>المورد/الدائن</label><input id="exParty"></div></div><button class="primary" onclick="addExpense()">تسجيل المصروف وإنشاء القيد</button></div><div class="card"><div id="expensesTable"></div></div></section>
+
+<section id="production" class="view">
+<div class="card"><h2>الإنتاج والنفوق والحصاد</h2><div class="formgrid"><div><label>الدورة</label><select id="prCycle"></select></div><div><label>النوع</label><select id="prType"><option value="measure">قياس إنتاج/كتلة حيوية</option><option value="mortality">نفوق</option><option value="harvest">حصاد</option></select></div><div><label>التاريخ</label><input id="prDate" type="date"></div><div><label>العدد</label><input id="prCount" type="number"></div><div><label>الوزن المتوسط جم</label><input id="prAvg" type="number"></div><div><label>الوزن/الكمية كجم</label><input id="prKg" type="number"></div><div class="span3"><label>ملاحظات</label><input id="prNote"></div></div><button class="primary" onclick="addProduction()">تسجيل</button></div><div class="card"><div id="productionTable"></div></div></section>
+
+<section id="sales" class="view">
+<div class="card"><h2>المبيعات</h2><div class="formgrid"><div><label>الدورة</label><select id="saleCycle"></select></div><div><label>العميل</label><input id="saleCustomer"></div><div><label>التاريخ</label><input id="saleDate" type="date"></div><div><label>الكمية كجم</label><input id="saleKg" type="number"></div><div><label>سعر البيع/كجم</label><input id="salePrice" type="number"></div><div><label>المدفوع</label><input id="salePaid" type="number"></div></div><button class="primary" onclick="addSale()">تسجيل البيع وإنشاء قيد الإيراد والتكلفة</button></div><div class="card"><div id="salesTable"></div></div></section>
+
+<section id="journal" class="view">
+<div class="card"><h2>دفتر اليومية</h2><p class="muted">يشمل القيود التلقائية الناتجة عن العمليات، والقيود اليدوية التي تنشئها بنفسك.</p>
+<div class="row"><button class="primary" onclick="showManual()">قيد يومية يدوي جديد</button><button onclick="renderJournal()">تحديث</button></div><div id="manualBox"></div></div>
+<div class="card"><div id="journalTable"></div></div></section>
+
+<section id="coa" class="view">
+<div class="card"><h2>شجرة الحسابات — حتى 5 مستويات</h2><p class="muted">الحسابات تحتوي على رقم واسم ومستوى وأب. يمكن إنشاء حسابات فرعية حتى المستوى الخامس.</p>
+<div class="formgrid"><div><label>رقم الحساب</label><input id="aCode"></div><div><label>اسم الحساب</label><input id="aName"></div><div><label>الحساب الأب</label><select id="aParent"></select></div></div><button class="primary" onclick="addAccount()">إضافة حساب</button></div>
+<div class="card"><h3>إدارة الحسابات</h3><p class="muted">رقم الحساب فريد. لا يمكن حذف حساب له حسابات فرعية أو مستخدم في قيد يومية. يمكن تعديل الاسم، وتعديل الرقم فقط إذا لم يُستخدم في قيود.</p><div id="accountIntegrity"></div><div id="accountManagement"></div></div>
+<div class="card"><div id="coaTable"></div></div></section>
+
+<section id="reports" class="view">
+<div class="card"><h2>التقارير</h2><div class="row"><button class="primary" onclick="renderReports()">تحديث التقارير</button></div></div>
+<div class="card"><h3>ميزان المراجعة</h3><div id="trial"></div></div>
+<div class="card"><h3>قائمة الدخل المختصرة</h3><div id="pl"></div></div>
+<div class="card"><h3>ربحية الدورات</h3><div id="cycleProfit"></div></div>
+</section>
+
+
+<section id="v5" class="view">
+<div id="v5area" class="card"><h2>المحاسبة المتقدمة وإدارة التكاليف</h2>
+<div class="card"><h3>توزيع المصروفات المشتركة على الدورات</h3>
+<div class="formgrid"><div><label>المصروف المشترك</label><select id="oaExpense"></select></div></div>
+<div id="oaRows"></div><button onclick="addOARow()">+ دورة</button> <button class="primary" onclick="addOverheadAllocation()">توزيع 100%</button></div>
+<div class="card"><h3>الأصول والإهلاك</h3><div class="formgrid"><div><label>اسم الأصل</label><input id="assetNameV5"></div><div><label>قيمة الأصل</label><input id="assetCostV5" type="number"></div><div><label>العمر بالأشهر</label><input id="assetMonthsV5" type="number"></div></div><button class="primary" onclick="addDepreciation()">إثبات الأصل وإنشاء الإهلاك</button></div>
+<div class="card"><h3>إقفال الفترات</h3><div class="formgrid"><div><label>من</label><input id="closeFrom" type="date"></div><div><label>إلى</label><input id="closeTo" type="date"></div></div><button class="primary" onclick="closePeriod()">إغلاق الفترة</button><div id="v5periods"></div></div>
+<div class="card"><h3>العملاء — أرصدة مدينة</h3><div id="v5AR"></div></div>
+<div class="card"><h3>الموردون — أرصدة دائنة من المشتريات الآجلة</h3><div id="v5AP"></div></div>
+<div class="card"><h3>المركز المالي المختصر</h3><div id="v5BS"></div></div>
+<div class="card"><h3>FCR والنفوق</h3><div id="v5FCR"></div></div>
+</div>
+</section>
+
+<section id="backup" class="view">
+<div class="card"><h2>النسخ الاحتياطي والاستعادة</h2><button class="primary" onclick="exportData()">تصدير نسخة JSON</button> <label style="display:inline-block">استعادة <input id="restoreFile" type="file" accept=".json" onchange="importData(event)"></label>
+<p class="muted">البيانات محلية على الجهاز ولا تحتاج خادماً. احتفظ بنسخة احتياطية دورية.</p><button class="danger" onclick="resetData()">حذف كل البيانات</button></div>
+</section>
+</div><div id="toast" class="toast"></div>
+
+<script>
+const KEY="aquafarm_v7";
+const defaultAccounts=[
+["1","الأصول",null],["11","الأصول المتداولة","1"],["111","النقدية","11"],["11101","الخزينة الرئيسية","111"],["1110101","خزينة المزرعة الرئيسية","11101"],
+["112","البنوك","11"],["11201","البنك الرئيسي","112"],
+["12","المخزون","1"],["121","الأعلاف والمخزون","12"],["12101","أعلاف الأسماك","121"],["1210101","مخزون الأعلاف","12101"],
+["13","العملاء","1"],["131","عملاء الأسماك","13"],
+["2","الالتزامات",null],["21","الموردون","2"],["211","موردو المزرعة","21"],["21101","موردو الأعلاف","211"],["2110101","موردو المزرعة","21101"],
+["3","حقوق الملكية",null],["31","رأس المال","3"],["311","رأس مال المالك","31"],
+["4","الإيرادات",null],["41","مبيعات الأسماك","4"],["411","مبيعات الأسماك","41"],["41101","مبيعات الأسماك حسب الدورات","411"],
+["5","التكاليف والمصروفات",null],["51","تكلفة الإنتاج","5"],["511","تكلفة الدورات","51"],["51101","تكلفة أعلاف الدورات","511"],
+["52","المصروفات العمومية","5"],["521","كهرباء","52"],["522","وقود","52"],["523","صيانة","52"],["524","مصروفات أخرى","52"],
+["53","تكلفة الأسماك المباعة","5"],["531","تكلفة المبيعات","53"]
+].map(x=>({code:x[0],name:x[1],parent:x[2]}));
+let db=load();
+function load(){try{let x=JSON.parse(localStorage.getItem(KEY)); if(x)return x}catch(e){}return {farm:{name:"AquaFarm",currency:"جنيه"},ponds:[],cycles:[],products:[],purchases:[],issues:[],expenses:[],production:[],sales:[],accounts:defaultAccounts,journal:[],seq:1000}}
+function save(){localStorage.setItem(KEY,JSON.stringify(db));}
+function toast(s){let t=document.getElementById("toast");t.textContent=s;t.style.display="block";setTimeout(()=>t.style.display="none",2200)}
+function id(p){return p+Date.now()+Math.random().toString(16).slice(2)}
+function money(n){return (Number(n)||0).toLocaleString("ar-EG",{maximumFractionDigits:2})+" "+(db.farm.currency||"جنيه")}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function account(code){return db.accounts.find(a=>a.code===code)}
+function post(date,desc,lines,source="تلقائي",ref=null){
+ let d=lines.reduce((s,l)=>s+Number(l.debit||0),0), c=lines.reduce((s,l)=>s+Number(l.credit||0),0);
+ if(Math.abs(d-c)>0.005) throw Error("القيد غير متوازن");
+ db.journal.push({id:id("j"),no:++db.seq,date,desc,source,ref,lines});
+}
+function selectFill(el,items,placeholder="—"){let e=document.getElementById(el);if(!e)return;e.innerHTML=`<option value="">${placeholder}</option>`+items.map(x=>`<option value="${esc(x.id||x.code)}">${esc(x.name||x.code)}</option>`).join("")}
+function init(){
+ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+ document.getElementById("farmName").value=db.farm.name||"";document.getElementById("currency").value=db.farm.currency||"جنيه";
+ ["cyStart","prDate","saleDate"].forEach(x=>document.getElementById(x).value=new Date().toISOString().slice(0,10));
+ renderAll();
+}
+function show(v){document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));document.getElementById(v).classList.add("active");document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active",x.dataset.v===v));renderAll()}
+function saveFarm(){db.farm.name=document.getElementById("farmName").value;db.farm.currency=document.getElementById("currency").value||"جنيه";save();toast("تم حفظ بيانات المزرعة")}
+function addPond(){let name=document.getElementById("pondName").value.trim();if(!name)return toast("أدخل اسم الحوض");db.ponds.push({id:id("p"),name,area:+document.getElementById("pondArea").value||0,depth:+document.getElementById("pondDepth").value||0});save();renderAll();toast("تمت إضافة الحوض")}
+function addCycle(){let name=document.getElementById("cyName").value.trim();if(!name)return toast("أدخل اسم الدورة");let c={id:id("c"),name,pondId:document.getElementById("cyPond").value,species:document.getElementById("cySpecies").value,start:document.getElementById("cyStart").value,count:+document.getElementById("cyCount").value||0,initialAvgW:+document.getElementById("cyAvgW").value||0,fingerCost:+document.getElementById("cyFingerCost").value||0,expectedKg:+document.getElementById("cyExpectedKg").value||0,targetPrice:+document.getElementById("cyTargetPrice").value||0};db.cycles.push(c);
+if(c.fingerCost)post(c.start||today(),"شراء/إدخال زريعة للدورة "+name,[{account:"511",debit:c.fingerCost},{account:"111",credit:c.fingerCost}],"تلقائي",c.id);
+save();renderAll();toast("تم إنشاء الدورة")}
+function addProduct(){let name=document.getElementById("prodName").value.trim();if(!name)return toast("أدخل اسم الصنف");db.products.push({id:id("pr"),name,unit:document.getElementById("prodUnit").value||"كجم",qty:+document.getElementById("prodOpenQty").value||0,avgCost:+document.getElementById("prodOpenCost").value||0});save();renderAll();toast("تمت إضافة الصنف")}
+function addPurchase(){let p=db.products.find(x=>x.id===document.getElementById("purProd").value),q=+document.getElementById("purQty").value||0,price=+document.getElementById("purPrice").value||0;if(!p||q<=0||price<0)return toast("بيانات الشراء غير مكتملة");let val=q*price,old=p.qty*p.avgCost;p.avgCost=(old+val)/(p.qty+q);p.qty+=q;let pay=document.getElementById("purPay").value;db.purchases.push({id:id("pu"),date:today(),productId:p.id,qty:q,price,value:val,supplier:document.getElementById("purSupplier").value,pay});
+post(today(),"شراء "+p.name,[{account:"121",debit:val},{account:pay==="cash"?"111":"211",credit:val}],"تلقائي",db.purchases.at(-1).id);save();renderAll();toast("تم تسجيل الشراء")}
+function issueStock(){let p=db.products.find(x=>x.id===document.getElementById("issProd").value),c=db.cycles.find(x=>x.id===document.getElementById("issCycle").value),q=+document.getElementById("issQty").value||0;if(!p||!c||q<=0)return toast("بيانات الصرف غير مكتملة");if(q>p.qty+1e-9)return toast("الرصيد غير كافٍ");let val=q*p.avgCost;p.qty-=q;let x={id:id("is"),date:today(),productId:p.id,cycleId:c.id,qty:q,cost:val};db.issues.push(x);post(today(),"صرف "+p.name+" للدورة "+c.name,[{account:"511",debit:val},{account:"121",credit:val}],"تلقائي",x.id);save();renderAll();toast("تم الصرف وتحميل التكلفة")}
+function addExpense(){let name=document.getElementById("exName").value.trim(),val=+document.getElementById("exAmount").value||0;if(!name||val<=0)return toast("بيانات المصروف غير مكتملة");let typ=document.getElementById("exType").value,cid=document.getElementById("exCycle").value,pay=document.getElementById("exPay").value,x={id:id("e"),date:today(),name,value:val,type:typ,cycleId:cid,pay,party:document.getElementById("exParty").value};db.expenses.push(x);let debit="524";if(/كهرب/.test(name))debit="521";else if(/وقود|سولار|بنزين/.test(name))debit="522";else if(/صيان/.test(name))debit="523";post(today(),name,[{account:debit,debit:val},{account:pay==="cash"?"111":"211",credit:val}],"تلقائي",x.id);if(typ==="cycle"){post(today(),"تحميل "+name+" على الدورة",[ {account:"511",debit:val},{account:debit,credit:val}],"تلقائي",x.id+"-alloc")}save();renderAll();toast("تم تسجيل المصروف")}
+function addProduction(){let cid=document.getElementById("prCycle").value,type=document.getElementById("prType").value,kg=+document.getElementById("prKg").value||0,count=+document.getElementById("prCount").value||0;if(!cid)return toast("اختر الدورة");let x={id:id("m"),cycleId:cid,type,date:document.getElementById("prDate").value||today(),count,avg:+document.getElementById("prAvg").value||0,kg,note:document.getElementById("prNote").value};db.production.push(x);save();renderAll();toast("تم تسجيل العملية")}
+function addSale(){let c=db.cycles.find(x=>x.id===document.getElementById("saleCycle").value),kg=+document.getElementById("saleKg").value||0,price=+document.getElementById("salePrice").value||0,paid=+document.getElementById("salePaid").value||0;if(!c||kg<=0||price<=0)return toast("بيانات البيع غير مكتملة");let rev=kg*price,paid2=Math.min(paid,rev),ar=rev-paid2;
+let cost=cycleCost(c.id),available=Math.max(0,totalHarvest(c.id)-totalSold(c.id));let cogs=available>0?Math.min(cost*(kg/Math.max(totalHarvest(c.id),kg)),cost):0;
+let x={id:id("s"),date:document.getElementById("saleDate").value||today(),cycleId:c.id,customer:document.getElementById("saleCustomer").value,kg,price,rev,paid:paid2,ar,cogs};db.sales.push(x);
+post(x.date(),"بيع أسماك - "+c.name,[{account:"111",debit:paid2},{account:"131",debit:ar},{account:"411",credit:rev}],"تلقائي",x.id);
+if(cogs>0)post(x.date(),"تكلفة أسماك مباعة - "+c.name,[{account:"531",debit:cogs},{account:"511",credit:cogs}],"تلقائي",x.id+"-cogs");
+save();renderAll();toast("تم تسجيل البيع والقيد")}
+function showManual(){document.getElementById("manualBox").innerHTML=`<div class="card"><h3>قيد يومية يدوي</h3><div class="formgrid"><div><label>التاريخ</label><input id="mjDate" type="date" value="${today()}"></div><div class="span2"><label>البيان</label><input id="mjDesc"></div></div><div id="mjLines"></div><button onclick="addMjLine()">+ سطر</button> <button class="primary" onclick="saveManual()">حفظ القيد</button></div>`;addMjLine();addMjLine()}
+function addMjLine(){let d=document.createElement("div");d.className="formgrid mj";d.innerHTML=`<div><label>الحساب</label><select class="mjA">${db.accounts.map(a=>`<option value="${a.code}">${a.code} - ${esc(a.name)}</option>`).join("")}</select></div><div><label>مدين</label><input class="mjD" type="number" value="0"></div><div><label>دائن</label><input class="mjC" type="number" value="0"></div>`;document.getElementById("mjLines").appendChild(d)}
+function saveManual(){let lines=[...document.querySelectorAll(".mj")].map(r=>({account:r.querySelector(".mjA").value,debit:+r.querySelector(".mjD").value||0,credit:+r.querySelector(".mjC").value||0})).filter(x=>x.debit||x.credit);try{post(document.getElementById("mjDate").value,document.getElementById("mjDesc").value||"قيد يومية يدوي",lines,"يدوي",null);save();renderAll();toast("تم حفظ القيد اليدوي");document.getElementById("manualBox").innerHTML=""}catch(e){toast(e.message)}}
+function normCode(code){return (String(code??"").trim().replace(/^0+/,'')||'0')}
+function accountIsUsed(code){return db.journal.some(j=>j.lines.some(l=>String(l.account)===String(code)))}
+function duplicateAccountGroups(){let m={};db.accounts.forEach((a,i)=>{let k=normCode(a.code);(m[k]??=[]).push({i,a})});return Object.values(m).filter(g=>g.length>1)}
+function addAccount(){
+ let code=document.getElementById("aCode").value.trim(),name=document.getElementById("aName").value.trim(),parent=document.getElementById("aParent").value||null;
+ if(!code||!name)return toast("أدخل رقم واسم الحساب");
+ if(!/^\d+$/.test(code))return toast("رقم الحساب يجب أن يتكون من أرقام فقط");
+ let normalized=normCode(code);
+ if(db.accounts.some(a=>normCode(a.code)===normalized))return toast("خطأ: رقم الحساب مستخدم بالفعل ولا يجوز تكراره");
+ let p=parent?account(parent):null;
+ if(parent&&!p)return toast("الحساب الأب غير صحيح");
+ let lv=p?treeLevel(p)+1:1;
+ if(lv>5)return toast("الحد الأقصى 5 مستويات");
+ if(p && !code.startsWith(String(p.code)))return toast("رقم الحساب الفرعي يجب أن يبدأ برقم الحساب الأب");
+ db.accounts.push({code,name,parent});save();renderAll();toast("تمت إضافة الحساب")
+}
+function editAccount(i){
+ let a=db.accounts[i];if(!a)return;
+ let used=accountIsUsed(a.code), children=accountChildren(a.code).length;
+ let newName=prompt("اسم الحساب:",a.name); if(newName===null)return; newName=newName.trim(); if(!newName)return toast("اسم الحساب لا يمكن أن يكون فارغًا");
+ let newCode=prompt("رقم الحساب:",a.code); if(newCode===null)return; newCode=newCode.trim();
+ if(!/^\d+$/.test(newCode))return toast("رقم الحساب يجب أن يتكون من أرقام فقط");
+ if(normCode(newCode)!==normCode(a.code)){
+   if(used)return toast("لا يمكن تغيير رقم حساب مستخدم في قيود اليومية؛ غيّر الاسم فقط أو أنشئ حسابًا جديدًا");
+   if(db.accounts.some((x,j)=>j!==i&&normCode(x.code)===normCode(newCode)))return toast("خطأ: رقم الحساب مستخدم بالفعل ولا يجوز تكراره");
+   if(a.parent && !newCode.startsWith(String(a.parent)))return toast("رقم الحساب الفرعي يجب أن يبدأ برقم الحساب الأب");
+   if(children)return toast("لا يمكن تغيير رقم حساب له حسابات فرعية");
+   a.code=newCode;
+ }
+ a.name=newName;save();renderAll();toast("تم تعديل الحساب")
+}
+function deleteAccount(i){
+ let a=db.accounts[i];if(!a)return;
+ if(accountChildren(a.code).length)return toast("لا يمكن حذف الحساب لأنه يحتوي على حسابات فرعية");
+ if(accountIsUsed(a.code))return toast("لا يمكن حذف الحساب لأنه مستخدم في قيد يومية");
+ if(!confirm("حذف الحساب "+a.code+" — "+a.name+"؟\nهذا الإجراء لا يمكن التراجع عنه."))return;
+ db.accounts.splice(i,1);save();renderAll();toast("تم حذف الحساب")
+}
+function renderAccountManagement(){
+ let groups=duplicateAccountGroups();
+ let integrity=groups.length?`<div class="bad"><b>تحذير:</b> يوجد ${groups.length} رقم/أرقام حساب مكررة حاليًا. يجب معالجة التكرار قبل الاعتماد على الدليل.</div>`:`<div class="ok"><b>سلامة الترقيم:</b> لا توجد أرقام حسابات مكررة.</div>`;
+ if(groups.length) integrity+=`<div class="muted" style="margin-top:7px">${groups.map(g=>`الرقم <b>${esc(g[0].a.code)}</b>: ${g.map(x=>esc(x.a.name)).join(" / ")}`).join("<br>")}</div>`;
+ document.getElementById("accountIntegrity").innerHTML=integrity;
+ document.getElementById("accountManagement").innerHTML=`<div style="overflow:auto"><table><tr><th>الرقم</th><th>اسم الحساب</th><th>المستوى</th><th>الأب</th><th>الحالة</th><th>إجراءات</th></tr>${db.accounts.map((a,i)=>{let used=accountIsUsed(a.code),kids=accountChildren(a.code).length;return `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td>${treeLevel(a)}</td><td>${esc(a.parent||"—")}</td><td>${used?'<span class="warn">مستخدم في القيود</span>':'<span class="ok">غير مستخدم' + (kids?' / له فروع':'') + '</span>'}</td><td><button onclick="editAccount(${i})">تعديل</button> <button class="danger" onclick="deleteAccount(${i})">حذف</button></td></tr>`}).join("")}</table></div>`
+}
+function treeLevel(a){let n=1,seen=new Set();while(a.parent){if(seen.has(a.code))return 99;seen.add(a.code);a=account(a.parent);if(!a)return 99;n++}return n}
+function totalHarvest(cid){return db.production.filter(x=>x.cycleId===cid&&x.type==="harvest").reduce((s,x)=>s+x.kg,0)}
+function totalSold(cid){return db.sales.filter(x=>x.cycleId===cid).reduce((s,x)=>s+x.kg,0)}
+function mortality(cid){let c=db.cycles.find(x=>x.id===cid),dead=db.production.filter(x=>x.cycleId===cid&&x.type==="mortality").reduce((s,x)=>s+x.count,0);return c&&c.count?dead/c.count*100:0}
+function cycleCost(cid){let c=db.cycles.find(x=>x.id===cid);if(!c)return 0;return (c.fingerCost||0)+db.issues.filter(x=>x.cycleId===cid).reduce((s,x)=>s+x.cost,0)+db.expenses.filter(x=>x.type==="cycle"&&x.cycleId===cid).reduce((s,x)=>s+x.value,0)}
+function today(){return new Date().toISOString().slice(0,10)}
+function renderAll(){db.overheadAllocations??=[];db.assets??=[];db.closedPeriods??=[];renderSelects();renderHome();renderPonds();renderCycles();renderInventory();renderExpenses();renderProduction();renderSales();renderJournal();renderCoa();renderReports();renderV5();let oe=document.getElementById('oaExpense');if(oe){oe.innerHTML='<option value="">—</option>'+db.expenses.filter(e=>e.type==='general').map(e=>`<option value="${e.id}">${esc(e.name)} — ${money(e.value)}</option>`).join('');}}
+function renderSelects(){selectFill("cyPond",db.ponds);["issCycle","exCycle","prCycle","saleCycle"].forEach(x=>selectFill(x,db.cycles));["purProd","issProd"].forEach(x=>selectFill(x,db.products))}
+function renderHome(){let stock=db.products.reduce((s,p)=>s+p.qty*p.avgCost,0),sales=db.sales.reduce((s,x)=>s+x.rev,0),cost=db.cycles.reduce((s,c)=>s+cycleCost(c.id),0);document.getElementById("metrics").innerHTML=[
+["الدورات النشطة",db.cycles.length],["قيمة المخزون",money(stock)],["المبيعات",money(sales)],["تكلفة الدورات",money(cost)],["الحصاد كجم",db.production.filter(x=>x.type==="harvest").reduce((s,x)=>s+x.kg,0).toLocaleString("ar-EG")]
+].map(x=>`<div class="card"><div class="muted">${x[0]}</div><div class="metric">${x[1]}</div></div>`).join("");document.getElementById("homeText").textContent="المحاسبة تعمل في الخلفية بقيود تلقائية، مع إمكانية إدخال قيود يدوية مستقلة."}
+function renderPonds(){document.getElementById("ponds").innerHTML=db.ponds.length?`<table><tr><th>الحوض</th><th>المساحة</th><th>العمق</th><th>الدورات</th></tr>${db.ponds.map(p=>`<tr><td>${esc(p.name)}</td><td>${p.area}</td><td>${p.depth}</td><td>${db.cycles.filter(c=>c.pondId===p.id).length}</td></tr>`).join("")}</table>`:"لا توجد أحواض"}
+function renderCycles(){document.getElementById("cyclesTable").innerHTML=db.cycles.length?`<table><tr><th>الدورة</th><th>الحوض</th><th>النوع</th><th>زريعة</th><th>حصاد كجم</th><th>نفوق %</th><th>التكلفة</th><th>تكلفة/كجم</th><th>المبيعات</th><th>الربح</th></tr>${db.cycles.map(c=>{let h=totalHarvest(c.id),co=cycleCost(c.id),rev=db.sales.filter(s=>s.cycleId===c.id).reduce((s,x)=>s+x.rev,0);return `<tr><td>${esc(c.name)}</td><td>${esc(db.ponds.find(p=>p.id===c.pondId)?.name||"")}</td><td>${esc(c.species)}</td><td>${c.count}</td><td>${h}</td><td>${mortality(c.id).toFixed(2)}%</td><td>${money(co)}</td><td>${h?money(co/h):"—"}</td><td>${money(rev)}</td><td class="${rev-co>=0?'ok':'bad'}">${money(rev-co)}</td></tr>`}).join("")}</table>`:"لا توجد دورات"}
+function renderInventory(){document.getElementById("inventoryTable").innerHTML=`<table><tr><th>الصنف</th><th>الوحدة</th><th>الرصيد</th><th>التكلفة المرجحة</th><th>قيمة المخزون</th></tr>${db.products.map(p=>`<tr><td>${esc(p.name)}</td><td>${esc(p.unit)}</td><td>${p.qty.toFixed(2)}</td><td>${money(p.avgCost)}</td><td>${money(p.qty*p.avgCost)}</td></tr>`).join("")}</table>`}
+function renderExpenses(){document.getElementById("expensesTable").innerHTML=`<table><tr><th>التاريخ</th><th>المصروف</th><th>القيمة</th><th>التخصيص</th></tr>${db.expenses.map(x=>`<tr><td>${x.date}</td><td>${esc(x.name)}</td><td>${money(x.value)}</td><td>${x.type==="cycle"?(db.cycles.find(c=>c.id===x.cycleId)?.name||""):"مشترك/عمومي"}</td></tr>`).join("")}</table>`}
+function renderProduction(){document.getElementById("productionTable").innerHTML=`<table><tr><th>التاريخ</th><th>الدورة</th><th>العملية</th><th>العدد</th><th>كجم</th><th>ملاحظات</th></tr>${db.production.map(x=>`<tr><td>${x.date}</td><td>${esc(db.cycles.find(c=>c.id===x.cycleId)?.name||"")}</td><td>${x.type==="measure"?"قياس":x.type==="mortality"?"نفوق":"حصاد"}</td><td>${x.count}</td><td>${x.kg}</td><td>${esc(x.note)}</td></tr>`).join("")}</table>`}
+function renderSales(){document.getElementById("salesTable").innerHTML=`<table><tr><th>التاريخ</th><th>الدورة</th><th>العميل</th><th>كجم</th><th>الإيراد</th><th>مدفوع</th><th>آجل</th></tr>${db.sales.map(x=>`<tr><td>${x.date}</td><td>${esc(db.cycles.find(c=>c.id===x.cycleId)?.name||"")}</td><td>${esc(x.customer)}</td><td>${x.kg}</td><td>${money(x.rev)}</td><td>${money(x.paid)}</td><td>${money(x.ar)}</td></tr>`).join("")}</table>`}
+function renderJournal(){document.getElementById("journalTable").innerHTML=`<table><tr><th>رقم</th><th>التاريخ</th><th>المصدر</th><th>البيان</th><th>التفاصيل</th></tr>${db.journal.slice().reverse().map(j=>`<tr><td>${j.no}</td><td>${j.date}</td><td>${j.source}</td><td>${esc(j.desc)}</td><td>${j.lines.map(l=>`${l.account} ${esc(account(l.account)?.name||"")} : ${l.debit?money(l.debit)+" مدين":money(l.credit)+" دائن"}`).join("<br>")}<br><button onclick="reverseJournal(${j.no})">عكس القيد</button></td></tr>`).join("")}</table>`}
+function renderCoa(){renderAccountManagement();let roots=db.accounts.filter(a=>!a.parent);function branch(a){let kids=db.accounts.filter(x=>x.parent===a.code);return `<details><summary>${a.code} — ${esc(a.name)} <span class="muted">المستوى ${treeLevel(a)}</span></summary>${kids.map(branch).join("")}</details>`}document.getElementById("coaTable").innerHTML=roots.map(branch).join("");selectFill("aParent",db.accounts.map(a=>({code:a.code,name:a.code+" — "+a.name})),"بدون أب")}
+function renderReports(){let sums={};db.journal.forEach(j=>j.lines.forEach(l=>{sums[l.account]??={d:0,c:0};sums[l.account].d+=l.debit||0;sums[l.account].c+=l.credit||0}));document.getElementById("trial").innerHTML=`<table><tr><th>الحساب</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr>${db.accounts.filter(a=>sums[a.code]).map(a=>{let s=sums[a.code],bal=s.d-s.c;return `<tr><td>${a.code} — ${esc(a.name)}</td><td>${money(s.d)}</td><td>${money(s.c)}</td><td>${money(bal)}</td></tr>`}).join("")}</table>`;
+let rev=sums["411"]?.c||0, exp=["531","521","522","523","524"].reduce((s,k)=>s+(sums[k]?.d||0),0);document.getElementById("pl").innerHTML=`الإيرادات: <b>${money(rev)}</b> — التكاليف والمصروفات: <b>${money(exp)}</b> — صافي النتيجة: <b class="${rev-exp>=0?'ok':'bad'}">${money(rev-exp)}</b>`;
+document.getElementById("cycleProfit").innerHTML=`<table><tr><th>الدورة</th><th>التكلفة</th><th>المبيعات</th><th>النتيجة</th><th>التكلفة/كجم حصاد</th></tr>${db.cycles.map(c=>{let co=cycleCost(c.id),rv=db.sales.filter(s=>s.cycleId===c.id).reduce((s,x)=>s+x.rev,0),h=totalHarvest(c.id);return `<tr><td>${esc(c.name)}</td><td>${money(co)}</td><td>${money(rv)}</td><td class="${rv-co>=0?'ok':'bad'}">${money(rv-co)}</td><td>${h?money(co/h):"—"}</td></tr>`}).join("")}</table>`}
+function exportData(){let blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="AquaFarm_V4_Backup.json";a.click()}
+function importData(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let x=JSON.parse(r.result);if(!x.accounts||!x.journal)throw 0;db=x;save();renderAll();toast("تمت الاستعادة")}catch(_){toast("ملف النسخة غير صالح")}};r.readAsText(f)}
+function resetData(){if(confirm("سيتم حذف كل البيانات. هل أنت متأكد؟")){localStorage.removeItem(KEY);db=load();renderAll();toast("تم حذف البيانات")}}
+init();
+</script>
+
+<!-- V5 accounting enhancements -->
+<style>
+.v5pill{display:inline-block;padding:3px 7px;border-radius:999px;background:#eef4f7;font-size:11px}
+.v5toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.v5box{background:#f8fafb;border:1px solid #dde6ea;border-radius:10px;padding:10px;margin-top:8px}
+</style>
+<script>
+/* V5 helpers */
+function accountBalance(code){
+  let d=0,c=0;
+  db.journal.forEach(j=>j.lines.forEach(l=>{if(l.account===code){d+=+l.debit||0;c+=+l.credit||0}}));
+  return d-c;
+}
+function accountChildren(code){return db.accounts.filter(a=>a.parent===code)}
+function isLeaf(code){return accountChildren(code).length===0}
+function parentLevel(code){
+  let a=account(code), n=0;
+  while(a){n++; a=a.parent?account(a.parent):null}
+  return n;
+}
+function validateAccountDepth(parent){
+  return parent ? parentLevel(parent)+1 : 1;
+}
+function getCycleFeedKg(cid){return db.issues.filter(x=>x.cycleId===cid).reduce((s,x)=>s+x.qty,0)}
+function getInitialBiomassKg(c){return (c.count||0)*(c.initialAvgW||0)/1000}
+function getMeasuredBiomassKg(cid){
+  let xs=db.production.filter(x=>x.cycleId===cid&&x.type==="measure"&&x.kg>0);
+  return xs.length?xs[xs.length-1].kg:0;
+}
+function cycleFCR(cid){
+  let c=db.cycles.find(x=>x.id===cid); if(!c)return null;
+  let feed=getCycleFeedKg(cid), final=getMeasuredBiomassKg(cid), harvested=totalHarvest(cid);
+  let gain=final-getInitialBiomassKg(c)+harvested;
+  return gain>0?feed/gain:null;
+}
+function addOverheadAllocation(){
+  let exId=document.getElementById("oaExpense")?.value;
+  let ex=db.expenses.find(x=>x.id===exId);
+  let rows=[...document.querySelectorAll(".oaRow")];
+  if(!ex)return toast("اختر مصروفاً مشتركاً");
+  let alloc=rows.map(r=>({cycleId:r.querySelector(".oaCycle").value,pct:+r.querySelector(".oaPct").value||0}))
+    .filter(x=>x.cycleId&&x.pct>0);
+  let total=alloc.reduce((s,x)=>s+x.pct,0);
+  if(Math.abs(total-100)>0.001)return toast("يجب أن تساوي نسب التوزيع 100%");
+  db.overheadAllocations??=[];
+  db.overheadAllocations.push({id:id("oa"),expenseId:ex.id,date:today(),alloc});
+  alloc.forEach(a=>{
+    let val=ex.value*a.pct/100;
+    db.journal.push({id:id("j"),no:++db.seq,date:today(),desc:"تخصيص مصروف مشترك: "+ex.name+" إلى "+(db.cycles.find(c=>c.id===a.cycleId)?.name||""),
+      source:"تلقائي-تخصيص",ref:ex.id,lines:[{account:"511",debit:val},{account:"524",credit:val}]});
+  });
+  save();renderAll();renderV5();
+  toast("تم توزيع المصروف على الدورات");
+}
+function addOARow(){
+  let box=document.getElementById("oaRows"); if(!box)return;
+  let d=document.createElement("div");d.className="formgrid oaRow";
+  d.innerHTML=`<div><label>الدورة</label><select class="oaCycle">${db.cycles.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>
+  <div><label>النسبة %</label><input class="oaPct" type="number" min="0" max="100" value="0"></div>`;
+  box.appendChild(d);
+}
+function addDepreciation(){
+  let name=document.getElementById("assetNameV5")?.value.trim(), cost=+document.getElementById("assetCostV5")?.value||0,
+      months=+document.getElementById("assetMonthsV5")?.value||0;
+  if(!name||cost<=0||months<=0)return toast("بيانات الأصل غير مكتملة");
+  let monthly=cost/months, x={id:id("a"),name,cost,months,monthly,start:today(),posted:0};
+  db.assets??=[];db.assets.push(x);
+  post(today(),"إثبات أصل: "+name,[{account:"1",debit:cost},{account:"111",credit:cost}],"تلقائي",x.id);
+  for(let m=0;m<months;m++){
+    let dt=new Date();dt.setMonth(dt.getMonth()+m);
+    let date=dt.toISOString().slice(0,10);
+    post(date,"قيد إهلاك شهري - "+name,[{account:"524",debit:monthly},{account:"1",credit:monthly}],"تلقائي-إهلاك",x.id+"-"+m);
+  }
+  x.posted=months;save();renderAll();renderV5();toast("تم إنشاء الأصل وقيود الإهلاك");
+}
+function reverseJournal(no){
+  let j=db.journal.find(x=>x.no===no);
+  if(!j)return;
+  if(j.source==="عكسي")return toast("القيد عكسي بالفعل");
+  let lines=j.lines.map(l=>({account:l.account,debit:l.credit,credit:l.debit}));
+  try{post(today(),"عكس القيد رقم "+j.no,lines,"عكسي",j.id);save();renderAll();renderV5();toast("تم عكس القيد")}catch(e){toast(e.message)}
+}
+function closePeriod(){
+  let from=document.getElementById("closeFrom")?.value,to=document.getElementById("closeTo")?.value;
+  if(!from||!to||from>to)return toast("حدد فترة صحيحة");
+  db.closedPeriods??=[];
+  if(db.closedPeriods.some(x=>x.from===from&&x.to===to))return toast("الفترة مغلقة بالفعل");
+  let revenue=0,expenses=0;
+  db.journal.filter(j=>j.date>=from&&j.date<=to).forEach(j=>j.lines.forEach(l=>{
+    let code=l.account;
+    if(code.startsWith("4")) revenue+=l.credit-l.debit;
+    if(code.startsWith("5")) expenses+=l.debit-l.credit;
+  }));
+  let result=revenue-expenses;
+  if(Math.abs(result)>0.005){
+    post(to,"إقفال نتيجة الفترة "+from+" إلى "+to,
+      [{account:"4",debit:revenue},{account:"5",credit:expenses},{account:"311",debit:Math.max(0,result),credit:0},{account:"311",debit:0,credit:Math.max(0,-result)}],
+      "إقفال",from+"_"+to);
+  }
+  db.closedPeriods.push({from,to,closedAt:new Date().toISOString(),result});
+  save();renderAll();renderV5();toast("تم إغلاق الفترة");
+}
+function renderV5(){
+  if(!document.getElementById("v5area"))return;
+  let periods=(db.closedPeriods||[]).map(x=>`<tr><td>${x.from}</td><td>${x.to}</td><td>${money(x.result)}</td><td>${x.closedAt.slice(0,10)}</td></tr>`).join("");
+  document.getElementById("v5periods").innerHTML=`<table><tr><th>من</th><th>إلى</th><th>نتيجة الإقفال</th><th>التاريخ</th></tr>${periods||"<tr><td colspan=4>لا توجد فترات مغلقة</td></tr>"}</table>`;
+  let ar={},ap={};
+  db.sales.forEach(s=>{let k=s.customer||"عميل غير محدد";ar[k]=(ar[k]||0)+s.ar});
+  db.purchases.forEach(p=>{if(p.pay==="credit"){let k=p.supplier||"مورد غير محدد";ap[k]=(ap[k]||0)+p.value}});
+  document.getElementById("v5AR").innerHTML=`<table><tr><th>العميل</th><th>الرصيد</th></tr>${Object.entries(ar).map(x=>`<tr><td>${esc(x[0])}</td><td>${money(x[1])}</td></tr>`).join("")||"<tr><td colspan=2>لا توجد أرصدة</td></tr>"}</table>`;
+  document.getElementById("v5AP").innerHTML=`<table><tr><th>المورد</th><th>المشتريات الآجلة</th></tr>${Object.entries(ap).map(x=>`<tr><td>${esc(x[0])}</td><td>${money(x[1])}</td></tr>`).join("")||"<tr><td colspan=2>لا توجد أرصدة</td></tr>"}</table>`;
+  let assets=db.accounts.filter(a=>a.code.startsWith("1")).reduce((s,a)=>s+Math.max(accountBalance(a.code),0),0);
+  let liab=db.accounts.filter(a=>a.code.startsWith("2")).reduce((s,a)=>s+Math.max(-accountBalance(a.code),0),0);
+  let eq=db.accounts.filter(a=>a.code.startsWith("3")).reduce((s,a)=>s+Math.max(-accountBalance(a.code),0),0);
+  document.getElementById("v5BS").innerHTML=`<div class="grid"><div class="v5box">الأصول<br><b>${money(assets)}</b></div><div class="v5box">الالتزامات<br><b>${money(liab)}</b></div><div class="v5box">حقوق الملكية<br><b>${money(eq)}</b></div></div>`;
+  document.getElementById("v5FCR").innerHTML=`<table><tr><th>الدورة</th><th>العلف كجم</th><th>الزيادة الحيوية المستخدمة</th><th>FCR</th><th>النفوق</th></tr>${db.cycles.map(c=>{let f=cycleFCR(c.id);return `<tr><td>${esc(c.name)}</td><td>${getCycleFeedKg(c.id).toFixed(2)}</td><td>${(getMeasuredBiomassKg(c.id)-getInitialBiomassKg(c)+totalHarvest(c.id)).toFixed(2)}</td><td>${f==null?"—":f.toFixed(3)}</td><td>${mortality(c.id).toFixed(2)}%</td></tr>`}).join("")}</table>`;
+}
+</script>
+
+<script>
+/* AquaFarm V6 — Fish Production / WIP Costing Extension */
+(function(){
+  const KEY='aquafarm_v6_state';
+  function load(){ try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null} }
+  function save(s){ localStorage.setItem(KEY,JSON.stringify(s)); }
+  let S=load()||{
+    cycles:[], ponds:[], species:[], products:[], purchases:[], issues:[], expenses:[],
+    stockings:[], mortality:[], measurements:[], harvests:[], fishStock:[], sales:[],
+    overhead:[], assets:[], depreciation:[], journals:[], accounts:[], parties:[],
+    settings:{version:6}, closedPeriods:[]
+  };
+  window.AquaFarmV6={get:()=>S, save:()=>save(S), reset:()=>{localStorage.removeItem(KEY);location.reload()}};
+
+  function id(p){return p+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)}
+  function num(x){return Number(x||0)}
+  function cycle(idv){return S.cycles.find(x=>x.id===idv)}
+  function post(desc, lines, source='automatic', ref=''){
+    const d=lines.reduce((a,l)=>a+num(l.debit),0), c=lines.reduce((a,l)=>a+num(l.credit),0);
+    if(Math.abs(d-c)>0.0001) throw Error('القيد غير متوازن');
+    S.journals.push({id:id('J'),date:new Date().toISOString().slice(0,10),description:desc,
+      source,ref,lines:lines.map(l=>({...l}))});
+  }
+  function account(name){return name}
+
+  // Stocking: fingerlings become cycle WIP cost.
+  window.AquaFarmV6.stock=function(o){
+    const c=cycle(o.cycleId); if(!c) throw Error('الدورة غير موجودة');
+    const cost=num(o.totalCost||num(o.qty)*num(o.unitCost));
+    const rec={id:id('ST'),date:o.date||new Date().toISOString().slice(0,10),cycleId:o.cycleId,
+      species:o.species||'',qty:num(o.qty),avgWeightKg:num(o.avgWeightKg),totalCost:cost};
+    S.stockings.push(rec);
+    post('تسكين إصبعيات/أسماك أولية',[
+      {account:'إنتاج تحت التشغيل - إصبعيات',debit:cost,credit:0,costCenter:o.cycleId},
+      {account:'النقدية/الموردون',debit:0,credit:cost,costCenter:o.cycleId}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  // Feed/direct expenses accumulate in WIP.
+  window.AquaFarmV6.issueFeed=function(o){
+    const cost=num(o.qty)*num(o.unitCost);
+    const rec={id:id('FI'),date:o.date||new Date().toISOString().slice(0,10),cycleId:o.cycleId,
+      productId:o.productId,qty:num(o.qty),unitCost:num(o.unitCost),cost};
+    S.issues.push(rec);
+    post('صرف علف للدورة',[
+      {account:'إنتاج تحت التشغيل - أعلاف',debit:cost,credit:0,costCenter:o.cycleId},
+      {account:'مخزون الأعلاف',debit:0,credit:cost,costCenter:o.cycleId}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  window.AquaFarmV6.directExpense=function(o){
+    const cost=num(o.amount), rec={id:id('EX'),date:o.date||new Date().toISOString().slice(0,10),
+      cycleId:o.cycleId,description:o.description||'',amount:cost};
+    S.expenses.push(rec);
+    post('مصروف مباشر للدورة',[
+      {account:'إنتاج تحت التشغيل - مصروفات مباشرة',debit:cost,credit:0,costCenter:o.cycleId},
+      {account:o.creditAccount||'النقدية/الموردون',debit:0,credit:cost,costCenter:o.cycleId}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  window.AquaFarmV6.overheadAllocate=function(o){
+    const total=num(o.total), rows=o.allocations||[];
+    const sum=rows.reduce((a,r)=>a+num(r.percent),0);
+    if(Math.abs(sum-100)>0.001) throw Error('يجب أن تساوي نسب التوزيع 100%');
+    rows.forEach(r=>{
+      const v=total*num(r.percent)/100;
+      S.overhead.push({id:id('OH'),date:o.date||new Date().toISOString().slice(0,10),
+        cycleId:r.cycleId,amount:v,source:o.description||'تحميل مصروفات غير مباشرة'});
+      post('تحميل مصروفات غير مباشرة على الدورة',[
+        {account:'إنتاج تحت التشغيل - مصروفات غير مباشرة',debit:v,credit:0,costCenter:r.cycleId},
+        {account:'مصروفات غير مباشرة محملة',debit:0,credit:v,costCenter:r.cycleId}], 'automatic',S.overhead[S.overhead.length-1].id);
+    });
+    save(S);
+  };
+
+  function cycleCost(cid){
+    const sums=a=>a.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.cost||x.totalCost||x.amount),0);
+    return sums(S.stockings)+sums(S.issues)+sums(S.expenses)+sums(S.overhead)+
+      S.depreciation.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.amount),0);
+  }
+  function biomass(cid){
+    const stocked=S.stockings.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const dead=S.mortality.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const harvested=S.harvests.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    return Math.max(0,stocked-dead-harvested);
+  }
+
+  // Harvest transfers accumulated WIP to harvested-fish inventory at average cost/kg.
+  window.AquaFarmV6.harvest=function(o){
+    const cid=o.cycleId, qty=num(o.qty); if(qty<=0) throw Error('كمية الحصاد غير صحيحة');
+    const beforeBiomass=biomass(cid), totalWip=cycleCost(cid);
+    const priorHarvestKg=S.harvests.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const alreadyTransferred=S.harvests.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.cost),0);
+    const remainingCost=Math.max(0,totalWip-alreadyTransferred);
+    const availableKg=Math.max(0,beforeBiomass+qty);
+    const costPerKg=availableKg?Math.min(remainingCost/qty, remainingCost/qty):0;
+    const cost=remainingCost*(qty/(qty+beforeBiomass||qty));
+    const rec={id:id('H'),date:o.date||new Date().toISOString().slice(0,10),cycleId:cid,
+      species:o.species||'',grade:o.grade||'',qty,unitCost:qty?cost/qty:0,cost};
+    S.harvests.push(rec);
+    S.fishStock.push({id:id('FS'),harvestId:rec.id,species:rec.species,grade:rec.grade,
+      qty,cost,remainingQty:qty});
+    post('تحويل الحصاد من الإنتاج تحت التشغيل إلى مخزون أسماك محصودة',[
+      {account:'مخزون أسماك محصودة',debit:cost,credit:0,costCenter:cid},
+      {account:'إنتاج تحت التشغيل - دورة',debit:0,credit:cost,costCenter:cid}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  window.AquaFarmV6.mortality=function(o){
+    const rec={id:id('M'),date:o.date||new Date().toISOString().slice(0,10),cycleId:o.cycleId,
+      qty:num(o.qty),reason:o.reason||''};
+    S.mortality.push(rec);
+    save(S); return rec;
+  };
+
+  // Sale relieves harvested stock using weighted-average harvested-fish cost.
+  window.AquaFarmV6.sale=function(o){
+    const qty=num(o.qty); if(qty<=0) throw Error('كمية البيع غير صحيحة');
+    let remain=qty, cogs=0;
+    for(const s of S.fishStock){
+      const avail=num(s.remainingQty);
+      if(avail<=0) continue;
+      const take=Math.min(avail,remain);
+      cogs += take*(num(s.cost)/Math.max(1,num(s.qty)));
+      s.remainingQty=avail-take; remain-=take;
+      if(remain<=0) break;
+    }
+    if(remain>0) throw Error('الكمية المطلوبة أكبر من مخزون الأسماك المحصودة');
+    const revenue=num(o.revenue);
+    const rec={id:id('SA'),date:o.date||new Date().toISOString().slice(0,10),
+      qty,revenue,cogs,customer:o.customer||'',paid:!!o.paid};
+    S.sales.push(rec);
+    post('إثبات مبيعات أسماك',[
+      {account:o.paid?'النقدية':'العملاء',debit:revenue,credit:0},
+      {account:'إيرادات بيع الأسماك',debit:0,credit:revenue}], 'automatic',rec.id);
+    post('إثبات تكلفة الأسماك المباعة',[
+      {account:'تكلفة الأسماك المباعة',debit:cogs,credit:0},
+      {account:'مخزون أسماك محصودة',debit:0,credit:cogs}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  window.AquaFarmV6.cycleReport=function(cid){
+    const cost=cycleCost(cid), h=S.harvests.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const sold=S.sales.reduce((t,x)=>t+num(x.cogs),0);
+    const mortality=S.mortality.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const stocked=S.stockings.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    const feed=S.issues.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.qty),0);
+    return {cycleId:cid,totalCost:cost,harvestKg:h,costPerHarvestKg:h?cost/h:0,
+      mortalityQty:mortality,mortalityRate:stocked?mortality/stocked*100:0,feedQty:feed,
+      fcr:h?feed/h:0,revenue:S.sales.filter(x=>x.cycleId===cid).reduce((t,x)=>t+num(x.revenue),0),soldCogs:sold};
+  };
+
+  // Recalculate monthly straight-line depreciation; allocations can be cycle-specific.
+  window.AquaFarmV6.depreciate=function(o){
+    const monthly=num(o.cost)/Math.max(1,num(o.lifeMonths));
+    const rec={id:id('D'),date:o.date||new Date().toISOString().slice(0,10),
+      asset:o.asset||'',cycleId:o.cycleId||'',amount:monthly};
+    S.depreciation.push(rec);
+    post('إهلاك شهري',[
+      {account:rec.cycleId?'إنتاج تحت التشغيل - إهلاك':'مصروف إهلاك',debit:monthly,credit:0,costCenter:rec.cycleId||''},
+      {account:'مجمع الإهلاك',debit:0,credit:monthly}], 'automatic',rec.id);
+    save(S); return rec;
+  };
+
+  // Manual journal with validation and optional cost center.
+  window.AquaFarmV6.manualJournal=function(o){
+    const d=(o.lines||[]).reduce((a,l)=>a+num(l.debit),0), c=(o.lines||[]).reduce((a,l)=>a+num(l.credit),0);
+    if(!o.lines?.length || Math.abs(d-c)>0.0001) throw Error('القيد اليدوي غير متوازن');
+    post(o.description||'قيد يدوي',o.lines,'manual',id('MJ')); save(S);
+  };
+
+  // Stronger trial balance and balance-sheet buckets.
+  window.AquaFarmV6.trialBalance=function(){
+    const m={};
+    S.journals.forEach(j=>j.lines.forEach(l=>{
+      m[l.account]??={debit:0,credit:0};
+      m[l.account].debit+=num(l.debit); m[l.account].credit+=num(l.credit);
+    }));
+    return Object.entries(m).map(([account,v])=>({account,...v,balance:v.debit-v.credit}));
+  };
+  window.AquaFarmV6.dashboard=function(){
+    const wip=S.cycles.map(c=>({id:c.id,name:c.name||c.id,cost:cycleCost(c.id),biomassKg:biomass(c.id)}));
+    const fishQty=S.fishStock.reduce((t,x)=>t+num(x.remainingQty),0);
+    const fishValue=S.fishStock.reduce((t,x)=>t+num(x.cost)*(num(x.remainingQty)/Math.max(1,num(x.qty))),0);
+    return {cycles:S.cycles.length,wip,fishStockKg:fishQty,fishStockValue:fishValue,
+      journals:S.journals.length};
+  };
+  // Expose a deterministic smoke-test runner.
+  window.AquaFarmV6.smokeTest=function(){
+    const results=[];
+    const check=(n,fn)=>{try{fn();results.push([n,true])}catch(e){results.push([n,false,String(e.message||e)])}};
+    check('double-entry',()=>S.journals.every(j=>Math.abs(j.lines.reduce((a,l)=>a+num(l.debit),0)-j.lines.reduce((a,l)=>a+num(l.credit),0))<.001));
+    check('5-level accounts',()=>{
+      if(S.accounts.length){ if(S.accounts.some(a=>num(a.level)>5)) throw Error('depth>5') }
+    });
+    check('backup-serializable',()=>JSON.stringify(S).length>10);
+    return results;
+  };
+})();
+</script>
+
+
+<section id="v6-production-panel" style="margin:18px 0;padding:16px;border:1px solid #d7dce2;border-radius:14px;background:#fff">
+  <h2>تكلفة الإنتاج السمكي — V6</h2>
+  <p>مسار التكلفة: إصبعيات → إنتاج تحت التشغيل → أعلاف ومصروفات وإهلاك → حصاد → مخزون أسماك محصودة → مبيعات/تكلفة مبيعات.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+    <button onclick="alert(JSON.stringify(AquaFarmV6.dashboard(),null,2))">ملخص الإنتاج والتكلفة</button>
+    <button onclick="alert(JSON.stringify(AquaFarmV6.trialBalance(),null,2))">ميزان المراجعة</button>
+    <button onclick="alert(JSON.stringify(AquaFarmV6.smokeTest(),null,2))">اختبار سلامة البيانات</button>
+  </div>
+  <small>كل البيانات محلية على الجهاز عبر LocalStorage. لا يوجد خادم أو API.</small>
+</section>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function (err) {
+      console.warn('AquaFarm service worker registration failed:', err);
+    });
+  });
+}
+</script>
+
+</body></html>
