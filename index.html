@@ -115,8 +115,20 @@ details{border:1px solid #dbe4e8;border-radius:9px;padding:9px;margin:6px 0}summ
 </section>
 
 <section id="backup" class="view">
-<div class="card"><h2>النسخ الاحتياطي والاستعادة</h2><button class="primary" onclick="exportData()">تصدير نسخة JSON</button> <label style="display:inline-block">استعادة <input id="restoreFile" type="file" accept=".json" onchange="importData(event)"></label>
-<p class="muted">البيانات محلية على الجهاز ولا تحتاج خادماً. احتفظ بنسخة احتياطية دورية.</p><button class="danger" onclick="resetData()">حذف كل البيانات</button></div>
+<div class="card"><h2>🔐 حماية البيانات والنسخ الاحتياطي</h2>
+<p class="muted">هذه الشاشة مخصصة لحماية البيانات المحاسبية الموجودة على جهازك. أي استعادة أو حذف أو تغيير هيكلي يتطلب تأكيداً، ويُنشئ نسخة حماية قبل التنفيذ.</p>
+<div class="row">
+<button class="primary" onclick="protectedBackupNow()">💾 إنشاء نسخة احتياطية الآن</button>
+<button onclick="refreshProtectionStatus()">🔄 فحص سلامة البيانات</button>
+</div>
+<div id="protectionStatus" class="card" style="margin-top:10px"></div>
+</div>
+<div class="card"><h3>استعادة نسخة احتياطية</h3>
+<p class="muted">اختر ملف JSON سبق تصديره من AquaFarm. سيتم حفظ نسخة من البيانات الحالية أولاً، ثم طلب تأكيد صريح قبل الاستعادة.</p>
+<label>ملف النسخة الاحتياطية <input id="restoreFile" type="file" accept=".json" onchange="protectedRestoreFile(event)"></label>
+</div>
+<div class="card"><h3>نسخ الحماية المحلية</h3><div id="protectedBackups"></div></div>
+<div class="card"><h3>إجراء خطِر</h3><p class="warn">حذف كل البيانات لا يمكن التراجع عنه إلا من نسخة احتياطية.</p><button class="danger" onclick="protectedResetData()">⚠️ حذف كل البيانات</button></div>
 </section>
 </div><div id="toast" class="toast"></div>
 
@@ -630,6 +642,192 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+</script>
+
+
+
+<script>
+(function(){
+  function fmtDate(v){ return v ? new Date(v).toLocaleString('ar-EG') : '—'; }
+  window.protectedBackupNow=function(){
+    var r=window.AquaFarmDataProtection.createBackup('نسخة احتياطية يدوية من شاشة الحماية');
+    if(!r.ok){ alert(r.message); return; }
+    // Also export a portable copy to Files/Downloads.
+    var data=JSON.parse(localStorage.getItem('aquafarm_v7')||'null');
+    var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='AquaFarm_Protected_Backup_'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    window.AquaFarmDataProtection.markDataBaseline();
+    refreshProtectionStatus();
+    if(window.toast) toast('تم إنشاء نسخة حماية وحفظ ملف قابل للاستعادة');
+  };
+  window.refreshProtectionStatus=function(){
+    var st=window.AquaFarmDataProtection.getStatus();
+    var el=document.getElementById('protectionStatus'); if(!el)return;
+    el.innerHTML='<b>حالة الحماية:</b> <span class="ok">مفعّلة</span><br>'+
+      'وجود البيانات: '+(st.hasData?'نعم':'لا')+'<br>'+
+      'مفتاح البيانات: <code>'+st.dataKey+'</code><br>'+
+      'عدد نسخ الحماية المحلية: '+st.backupCount+'<br>'+
+      'آخر نسخة: '+fmtDate(st.lastBackupAt)+'<br>'+
+      'سلامة خط الأساس: '+(st.changed?'<span class="warn">توجد تغييرات منذ آخر خط أساس</span>':'<span class="ok">لا توجد تغييرات غير معروفة</span>');
+    var list=window.AquaFarmDataProtection.listBackups();
+    var b=document.getElementById('protectedBackups');
+    b.innerHTML=list.length?list.slice().reverse().map(function(x){return '<div style="padding:7px;border-bottom:1px solid #eee"><b>'+x.id+'</b> — '+fmtDate(x.createdAt)+'<br><span class="muted">'+x.reason+'</span></div>'}).join(''):'<span class="muted">لا توجد نسخ حماية محلية بعد.</span>';
+  };
+  window.protectedRestoreFile=function(e){
+    var f=e.target.files&&e.target.files[0]; if(!f)return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var x=JSON.parse(r.result);
+        if(!x || !Array.isArray(x.accounts) || !Array.isArray(x.journal)) throw new Error('invalid');
+        var msg='سيتم استبدال البيانات المحاسبية الحالية بالنسخة المختارة. سيتم إنشاء نسخة حماية من البيانات الحالية أولاً.';
+        if(!confirm('⚠️ تحذير قبل الاستعادة\n\n'+msg+'\n\nهل تريد المتابعة؟')){ e.target.value=''; return; }
+        var b=window.AquaFarmDataProtection.createBackup('قبل استعادة نسخة خارجية');
+        if(!b.ok && window.AquaFarmDataProtection.hasData()){ alert('تعذر إنشاء نسخة حماية للبيانات الحالية. تم إلغاء الاستعادة.'); e.target.value=''; return; }
+        localStorage.setItem('aquafarm_v7',JSON.stringify(x));
+        window.AquaFarmDataProtection.markDataBaseline();
+        if(typeof db!=='undefined') db=x;
+        if(typeof renderAll==='function') renderAll();
+        refreshProtectionStatus();
+        if(window.toast) toast('تمت استعادة النسخة بعد حفظ نسخة حماية من البيانات السابقة');
+      }catch(err){ alert('ملف النسخة غير صالح أو لا يطابق بنية AquaFarm. لم يتم تغيير أي بيانات.'); }
+      e.target.value='';
+    };
+    r.readAsText(f);
+  };
+  window.protectedResetData=function(){
+    if(!window.AquaFarmDataProtection.requireConfirmation('حذف كل البيانات','سيتم حذف البيانات المحاسبية المحلية نهائياً من الجهاز.')) return;
+    var b=window.AquaFarmDataProtection.createBackup('قبل حذف جميع البيانات');
+    if(!b.ok && window.AquaFarmDataProtection.hasData()){ alert('تعذر إنشاء نسخة حماية. تم إلغاء الحذف.'); return; }
+    localStorage.removeItem('aquafarm_v7');
+    if(typeof db!=='undefined' && typeof load==='function') db=load();
+    if(typeof renderAll==='function') renderAll();
+    refreshProtectionStatus();
+    if(window.toast) toast('تم حذف البيانات بعد إنشاء نسخة حماية');
+  };
+  document.addEventListener('DOMContentLoaded',refreshProtectionStatus);
+})();
+</script>
+
+<!-- AquaFarm Protected Data Layer V8 -->
+<script>
+(function(){
+  "use strict";
+  const DATA_KEY = "aquafarm_v7";
+  const BACKUP_KEY = "aquafarm_protected_backups_v1";
+  const META_KEY = "aquafarm_data_meta_v1";
+  const APP_SCHEMA = 1;
+
+  function now(){ return new Date().toISOString(); }
+  function safeParse(v){ try { return JSON.parse(v); } catch(e){ return null; } }
+
+  function rawData(){
+    const v = localStorage.getItem(DATA_KEY);
+    return v ? safeParse(v) : null;
+  }
+
+  function fingerprint(obj){
+    try {
+      const s = JSON.stringify(obj);
+      let h = 2166136261;
+      for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h += (h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24); }
+      return (h>>>0).toString(16);
+    } catch(e){ return ""; }
+  }
+
+  function meta(){
+    return safeParse(localStorage.getItem(META_KEY)) || {
+      schema: APP_SCHEMA, createdAt: now(), lastKnownFingerprint: null,
+      lastBackupAt: null, backupCount: 0, protected: true
+    };
+  }
+
+  function saveMeta(m){ localStorage.setItem(META_KEY, JSON.stringify(m)); }
+
+  function backup(reason){
+    const data = rawData();
+    if(data === null) return {ok:false, message:"لا توجد بيانات محاسبية محفوظة لإنشاء نسخة احتياطية."};
+    const list = safeParse(localStorage.getItem(BACKUP_KEY)) || [];
+    const item = {
+      id: "BKP-" + Date.now(),
+      createdAt: now(),
+      reason: reason || "قبل تعديل قد يؤثر على البيانات",
+      fingerprint: fingerprint(data),
+      data: data
+    };
+    list.push(item);
+    // Keep the 10 most recent protected snapshots.
+    while(list.length > 10) list.shift();
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(list));
+    const m=meta();
+    m.lastBackupAt=item.createdAt; m.backupCount=list.length;
+    saveMeta(m);
+    return {ok:true, id:item.id, fingerprint:item.fingerprint};
+  }
+
+  function init(){
+    const data=rawData();
+    const m=meta();
+    if(data !== null && !m.lastKnownFingerprint){
+      m.lastKnownFingerprint=fingerprint(data);
+      saveMeta(m);
+      backup("نسخة أولية لحماية البيانات الموجودة");
+    }
+  }
+
+  function changed(){
+    const data=rawData();
+    if(data===null) return false;
+    return fingerprint(data) !== meta().lastKnownFingerprint;
+  }
+
+  function markSaved(){
+    const data=rawData();
+    if(data===null) return;
+    const m=meta(); m.lastKnownFingerprint=fingerprint(data); saveMeta(m);
+  }
+
+  // Public, non-destructive API for future UI and migrations.
+  window.AquaFarmDataProtection = {
+    key: DATA_KEY,
+    schema: APP_SCHEMA,
+    isProtected: function(){ return true; },
+    hasData: function(){ return rawData() !== null; },
+    hasUnexpectedChange: changed,
+    createBackup: backup,
+    listBackups: function(){
+      return (safeParse(localStorage.getItem(BACKUP_KEY)) || []).map(function(x){
+        return {id:x.id, createdAt:x.createdAt, reason:x.reason, fingerprint:x.fingerprint};
+      });
+    },
+    getBackup: function(id){
+      return (safeParse(localStorage.getItem(BACKUP_KEY)) || []).find(x=>x.id===id) || null;
+    },
+    markDataBaseline: markSaved,
+    getStatus: function(){
+      const m=meta();
+      return {
+        protected:true, dataKey:DATA_KEY, schema:m.schema,
+        hasData:rawData()!==null, changed:changed(),
+        lastBackupAt:m.lastBackupAt, backupCount:m.backupCount
+      };
+    },
+    requireConfirmation: function(action, details){
+      const d=details ? "\n\n"+details : "";
+      return window.confirm("⚠️ تحذير — "+action+
+        "\n\nهذا الإجراء قد يؤثر على بيانات محاسبية موجودة."+d+
+        "\n\nيجب إنشاء نسخة احتياطية قبل المتابعة.\nهل تريد إنشاء نسخة احتياطية والمتابعة؟");
+    },
+    protectedStorageWarning: function(){
+      alert("🔒 بيانات AquaFarm المحاسبية محمية.\n\nتعديل الواجهة أو التقارير لا يغيّر البيانات المحاسبية. أي ترحيل أو تعديل هيكلي يجب أن يمر عبر نسخة احتياطية وتأكيد مسبق.");
+    }
+  };
+
+  // Initialize without rewriting the accounting store.
+  init();
+})();
 </script>
 
 </body></html>
