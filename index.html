@@ -88,7 +88,7 @@ details{border:1px solid #dbe4e8;border-radius:9px;padding:9px;margin:6px 0}summ
 
 <section id="reports" class="view">
 <div class="card"><h2>التقارير</h2><div class="row"><button class="primary" onclick="renderReports()">تحديث التقارير</button></div></div>
-<div class="card"><h3>تقرير حركة حساب تفصيلي</h3><p class="muted">اختر أي حساب رئيسي أو فرعي، وحدد المدة. يمكن تضمين جميع الفروع التابعة.</p><div class="formgrid"><div><label>الحساب</label><select id="reportAccount"></select></div><div><label>من تاريخ</label><input id="reportFrom" type="date"></div><div><label>إلى تاريخ</label><input id="reportTo" type="date"></div></div><div class="row"><label style="display:flex;align-items:center;gap:6px"><input id="reportDescendants" type="checkbox" checked style="width:auto"> يشمل الفروع التابعة</label><button class="primary" onclick="renderAccountReport()">عرض التقرير</button></div><div id="accountReport"></div></div>
+<div class="card"><h3>تقرير حركة حساب تفصيلي</h3><p class="muted">اختر أي حساب رئيسي أو فرعي، وحدد المدة. يمكن تضمين جميع الفروع التابعة.</p><div class="formgrid"><div><label>الحساب <span class="muted">(رئيسي أو فرعي)</span></label><select id="reportAccount"></select></div><div><label>من تاريخ</label><input id="reportFrom" type="date"></div><div><label>إلى تاريخ</label><input id="reportTo" type="date"></div></div><div class="row"><label style="display:flex;align-items:center;gap:6px"><input id="reportDescendants" type="checkbox" checked style="width:auto"> يشمل الفروع التابعة</label><button class="primary" onclick="renderAccountReport()">عرض التقرير</button></div><div id="accountReport"></div></div>
 <div class="card"><h3>ميزان المراجعة</h3><div id="trial"></div></div>
 <div class="card"><h3>قائمة الدخل المختصرة</h3><div id="pl"></div></div>
 <div class="card"><h3>ربحية الدورات</h3><div id="cycleProfit"></div></div>
@@ -207,24 +207,8 @@ post(x.date(),"بيع أسماك - "+c.name,[{account:"111",debit:paid2},{accoun
 if(cogs>0)post(x.date(),"تكلفة أسماك مباعة - "+c.name,[{account:"531",debit:cogs},{account:"511",credit:cogs}],"تلقائي",x.id+"-cogs");
 save();renderAll();toast("تم تسجيل البيع والقيد")}
 function showManual(){document.getElementById("manualBox").innerHTML=`<div class="card"><h3>قيد يومية يدوي</h3><div class="formgrid"><div><label>التاريخ</label><input id="mjDate" type="date" value="${today()}"></div><div class="span2"><label>البيان</label><input id="mjDesc"></div></div><div id="mjLines"></div><button onclick="addMjLine()">+ سطر</button> <span class="muted">السطور الإضافية اختيارية ويمكن تركها فارغة</span> <button class="primary" onclick="saveManual()">حفظ القيد</button></div>`;addMjLine();addMjLine()}
-function addMjLine(){let d=document.createElement("div");d.className="formgrid mj";d.innerHTML=`<div><label>الحساب</label><select class="mjA"><option value="">— اختر الحساب —</option>${db.accounts.map(a=>`<option value="${a.code}">${a.code} - ${esc(a.name)}</option>`).join("")}</select></div><div><label>مدين</label><input class="mjD" type="number" value="0" min="0"></div><div><label>دائن</label><input class="mjC" type="number" value="0" min="0"></div>`;document.getElementById("mjLines").appendChild(d)}
-function saveManual(){
- let date=document.getElementById("mjDate")?.value||today(),desc=document.getElementById("mjDesc")?.value.trim()||"قيد يومية يدوي";
- let rows=[...document.querySelectorAll("#mjLines .mj")].map(r=>({account:r.querySelector(".mjA")?.value||"",debit:+r.querySelector(".mjD")?.value||0,credit:+r.querySelector(".mjC")?.value||0}));
- if(!date)return toast("أدخل تاريخ القيد");
- // Ignore truly empty extra rows. A selected account with zero amounts is also treated as empty until an amount is entered.
- let lines=rows.filter(x=>x.account);
- if(lines.length<2)return toast("اختر حسابين على الأقل وأدخل مبلغ القيد");
- if(lines.some(x=>!x.account||x.debit<0||x.credit<0||(x.debit>0&&x.credit>0)))return toast("كل سطر مستخدم يجب أن يحتوي حساباً ومبلغاً واحداً فقط (مدين أو دائن)");
- // Convenience for a standard two-account transfer: if one side has the amount and the other side is zero, complete the opposite side automatically.
- if(lines.length===2){
-   let a=lines[0],b=lines[1],aAmt=(a.debit||a.credit),bAmt=(b.debit||b.credit);
-   if(aAmt>0 && bAmt===0){ if(a.debit>0)b.credit=a.debit; else b.debit=a.credit; }
-   else if(bAmt>0 && aAmt===0){ if(b.debit>0)a.credit=b.debit; else a.debit=b.credit; }
- }
- if(lines.some(x=>(x.debit<=0&&x.credit<=0)||(x.debit>0&&x.credit>0)))return toast("استكمل مبلغ كل سطر مستخدم");
- try{post(date,desc,lines,"يدوي",null);save();renderAll();toast("تم حفظ القيد اليدوي");document.getElementById("manualBox").innerHTML=""}catch(e){toast(e.message)}
-}
+function addMjLine(){let d=document.createElement("div");d.className="formgrid mj";d.innerHTML=`<div><label>الحساب</label><select class="mjA">${db.accounts.map(a=>`<option value="${a.code}">${a.code} - ${esc(a.name)}</option>`).join("")}</select></div><div><label>مدين</label><input class="mjD" type="number" value="0"></div><div><label>دائن</label><input class="mjC" type="number" value="0"></div>`;document.getElementById("mjLines").appendChild(d)}
+function saveManual(){let date=document.getElementById("mjDate")?.value||today(),desc=document.getElementById("mjDesc")?.value.trim()||"قيد يومية يدوي";let lines=[...document.querySelectorAll("#mjLines .mj")].map(r=>({account:r.querySelector(".mjA")?.value||"",debit:+r.querySelector(".mjD")?.value||0,credit:+r.querySelector(".mjC")?.value||0})).filter(x=>x.debit||x.credit||x.account);if(!date)return toast("أدخل تاريخ القيد");if(lines.length<2)return toast("القيد يجب أن يحتوي على حسابين مستخدمين على الأقل");if(lines.some(x=>!x.account||(!x.debit&&!x.credit)||x.debit<0||x.credit<0||(x.debit>0&&x.credit>0)))return toast("استكمل بيانات السطور المستخدمة فقط؛ كل سطر يجب أن يحتوي حساباً ومبلغاً واحداً (مدين أو دائن)");try{post(date,desc,lines,"يدوي",null);save();renderAll();toast("تم حفظ القيد اليدوي");document.getElementById("manualBox").innerHTML=""}catch(e){toast(e.message)}}
 function normCode(code){return (String(code??"").trim().replace(/^0+/,'')||'0')}
 function accountIsUsed(code){return db.journal.some(j=>j.lines.some(l=>String(l.account)===String(code)))}
 function duplicateAccountGroups(){let m={};db.accounts.forEach((a,i)=>{let k=normCode(a.code);(m[k]??=[]).push({i,a})});return Object.values(m).filter(g=>g.length>1)}
@@ -287,7 +271,15 @@ function mortality(cid){let c=db.cycles.find(x=>x.id===cid),dead=db.production.f
 function cycleCost(cid){let c=db.cycles.find(x=>x.id===cid);if(!c)return 0;return (c.fingerCost||0)+db.issues.filter(x=>x.cycleId===cid).reduce((s,x)=>s+x.cost,0)+db.expenses.filter(x=>x.type==="cycle"&&x.cycleId===cid).reduce((s,x)=>s+x.value,0)}
 function today(){return new Date().toISOString().slice(0,10)}
 function renderAll(){db.overheadAllocations??=[];db.assets??=[];db.closedPeriods??=[];renderSelects();renderHome();renderPonds();renderCycles();renderInventory();renderExpenses();renderProduction();renderSales();renderJournal();renderCoa();renderReports();renderV5();renderUIManager();renderCustomReports();applyUI();let oe=document.getElementById('oaExpense');if(oe){oe.innerHTML='<option value="">—</option>'+db.expenses.filter(e=>e.type==='general').map(e=>`<option value="${e.id}">${esc(e.name)} — ${money(e.value)}</option>`).join('');}}
-function renderSelects(){selectFill("cyPond",db.ponds);["issCycle","exCycle","prCycle","saleCycle"].forEach(x=>selectFill(x,db.cycles));["purProd","issProd"].forEach(x=>selectFill(x,db.products))}
+function renderReportAccountSelect(){
+ const e=document.getElementById("reportAccount");
+ if(!e)return;
+ const previous=e.value;
+ const items=db.accounts.slice().sort((a,b)=>String(a.code).localeCompare(String(b.code),undefined,{numeric:true}));
+ e.innerHTML='<option value="">— اختر الحساب —</option>'+items.map(a=>`<option value="${esc(a.code)}">${esc(a.code)} — ${esc(a.name)}</option>`).join("");
+ if(items.some(a=>a.code===previous))e.value=previous;
+}
+function renderSelects(){selectFill("cyPond",db.ponds);["issCycle","exCycle","prCycle","saleCycle"].forEach(x=>selectFill(x,db.cycles));["purProd","issProd"].forEach(x=>selectFill(x,db.products));renderReportAccountSelect()}
 function renderHome(){let stock=db.products.reduce((s,p)=>s+p.qty*p.avgCost,0),sales=db.sales.reduce((s,x)=>s+x.rev,0),cost=db.cycles.reduce((s,c)=>s+cycleCost(c.id),0);document.getElementById("metrics").innerHTML=[
 ["الدورات النشطة",db.cycles.length],["قيمة المخزون",money(stock)],["المبيعات",money(sales)],["تكلفة الدورات",money(cost)],["الحصاد كجم",db.production.filter(x=>x.type==="harvest").reduce((s,x)=>s+x.kg,0).toLocaleString("ar-EG")]
 ].map(x=>`<div class="card"><div class="muted">${x[0]}</div><div class="metric">${x[1]}</div></div>`).join("");document.getElementById("homeText").textContent="المحاسبة تعمل في الخلفية بقيود تلقائية، مع إمكانية إدخال قيود يدوية مستقلة."}
