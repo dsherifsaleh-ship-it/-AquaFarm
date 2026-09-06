@@ -207,8 +207,24 @@ post(x.date(),"بيع أسماك - "+c.name,[{account:"111",debit:paid2},{accoun
 if(cogs>0)post(x.date(),"تكلفة أسماك مباعة - "+c.name,[{account:"531",debit:cogs},{account:"511",credit:cogs}],"تلقائي",x.id+"-cogs");
 save();renderAll();toast("تم تسجيل البيع والقيد")}
 function showManual(){document.getElementById("manualBox").innerHTML=`<div class="card"><h3>قيد يومية يدوي</h3><div class="formgrid"><div><label>التاريخ</label><input id="mjDate" type="date" value="${today()}"></div><div class="span2"><label>البيان</label><input id="mjDesc"></div></div><div id="mjLines"></div><button onclick="addMjLine()">+ سطر</button> <span class="muted">السطور الإضافية اختيارية ويمكن تركها فارغة</span> <button class="primary" onclick="saveManual()">حفظ القيد</button></div>`;addMjLine();addMjLine()}
-function addMjLine(){let d=document.createElement("div");d.className="formgrid mj";d.innerHTML=`<div><label>الحساب</label><select class="mjA">${db.accounts.map(a=>`<option value="${a.code}">${a.code} - ${esc(a.name)}</option>`).join("")}</select></div><div><label>مدين</label><input class="mjD" type="number" value="0"></div><div><label>دائن</label><input class="mjC" type="number" value="0"></div>`;document.getElementById("mjLines").appendChild(d)}
-function saveManual(){let date=document.getElementById("mjDate")?.value||today(),desc=document.getElementById("mjDesc")?.value.trim()||"قيد يومية يدوي";let lines=[...document.querySelectorAll("#mjLines .mj")].map(r=>({account:r.querySelector(".mjA")?.value||"",debit:+r.querySelector(".mjD")?.value||0,credit:+r.querySelector(".mjC")?.value||0})).filter(x=>x.debit||x.credit||x.account);if(!date)return toast("أدخل تاريخ القيد");if(lines.length<2)return toast("القيد يجب أن يحتوي على حسابين مستخدمين على الأقل");if(lines.some(x=>!x.account||(!x.debit&&!x.credit)||x.debit<0||x.credit<0||(x.debit>0&&x.credit>0)))return toast("استكمل بيانات السطور المستخدمة فقط؛ كل سطر يجب أن يحتوي حساباً ومبلغاً واحداً (مدين أو دائن)");try{post(date,desc,lines,"يدوي",null);save();renderAll();toast("تم حفظ القيد اليدوي");document.getElementById("manualBox").innerHTML=""}catch(e){toast(e.message)}}
+function addMjLine(){let d=document.createElement("div");d.className="formgrid mj";d.innerHTML=`<div><label>الحساب</label><select class="mjA"><option value="">— اختر الحساب —</option>${db.accounts.map(a=>`<option value="${a.code}">${a.code} - ${esc(a.name)}</option>`).join("")}</select></div><div><label>مدين</label><input class="mjD" type="number" value="0" min="0"></div><div><label>دائن</label><input class="mjC" type="number" value="0" min="0"></div>`;document.getElementById("mjLines").appendChild(d)}
+function saveManual(){
+ let date=document.getElementById("mjDate")?.value||today(),desc=document.getElementById("mjDesc")?.value.trim()||"قيد يومية يدوي";
+ let rows=[...document.querySelectorAll("#mjLines .mj")].map(r=>({account:r.querySelector(".mjA")?.value||"",debit:+r.querySelector(".mjD")?.value||0,credit:+r.querySelector(".mjC")?.value||0}));
+ if(!date)return toast("أدخل تاريخ القيد");
+ // Ignore truly empty extra rows. A selected account with zero amounts is also treated as empty until an amount is entered.
+ let lines=rows.filter(x=>x.account);
+ if(lines.length<2)return toast("اختر حسابين على الأقل وأدخل مبلغ القيد");
+ if(lines.some(x=>!x.account||x.debit<0||x.credit<0||(x.debit>0&&x.credit>0)))return toast("كل سطر مستخدم يجب أن يحتوي حساباً ومبلغاً واحداً فقط (مدين أو دائن)");
+ // Convenience for a standard two-account transfer: if one side has the amount and the other side is zero, complete the opposite side automatically.
+ if(lines.length===2){
+   let a=lines[0],b=lines[1],aAmt=(a.debit||a.credit),bAmt=(b.debit||b.credit);
+   if(aAmt>0 && bAmt===0){ if(a.debit>0)b.credit=a.debit; else b.debit=a.credit; }
+   else if(bAmt>0 && aAmt===0){ if(b.debit>0)a.credit=b.debit; else a.debit=b.credit; }
+ }
+ if(lines.some(x=>(x.debit<=0&&x.credit<=0)||(x.debit>0&&x.credit>0)))return toast("استكمل مبلغ كل سطر مستخدم");
+ try{post(date,desc,lines,"يدوي",null);save();renderAll();toast("تم حفظ القيد اليدوي");document.getElementById("manualBox").innerHTML=""}catch(e){toast(e.message)}
+}
 function normCode(code){return (String(code??"").trim().replace(/^0+/,'')||'0')}
 function accountIsUsed(code){return db.journal.some(j=>j.lines.some(l=>String(l.account)===String(code)))}
 function duplicateAccountGroups(){let m={};db.accounts.forEach((a,i)=>{let k=normCode(a.code);(m[k]??=[]).push({i,a})});return Object.values(m).filter(g=>g.length>1)}
@@ -827,6 +843,54 @@ if ('serviceWorker' in navigator) {
 
   // Initialize without rewriting the accounting store.
   init();
+})();
+</script>
+
+
+<script id="aquafarm-v8-2-safe-mutations">
+(function(){
+  const AP = window.AquaFarmDataProtection;
+  if(!AP) return;
+
+  window.AquaFarmConfirmMutation = async function(actionLabel){
+    try{ if(typeof AP.createBackup === "function") AP.createBackup(); }catch(e){}
+    return window.confirm(
+      "⚠️ حماية بيانات AquaFarm\n\n" +
+      "العملية التالية قد تغيّر بيانات الحسابات أو القيود:\n" +
+      actionLabel + "\n\n" +
+      "تم إنشاء نسخة احتياطية محلية قبل المتابعة.\n" +
+      "هل تريد تنفيذ العملية؟"
+    );
+  };
+
+  window.AquaFarmProtectedWrite = async function(actionLabel, writer){
+    const ok = await window.AquaFarmConfirmMutation(actionLabel);
+    if(!ok) return false;
+    try{
+      const result = await writer();
+      try{ if(AP.markDataBaseline) AP.markDataBaseline(); }catch(e){}
+      return result === undefined ? true : result;
+    }catch(err){
+      alert("لم يتم تنفيذ العملية حفاظًا على سلامة البيانات.\n\n" +
+            (err && err.message ? err.message : err));
+      return false;
+    }
+  };
+
+  function addStatus(){
+    if(document.getElementById("af-v82-status")) return;
+    const candidates = Array.from(document.querySelectorAll("button,a,[role=button]"));
+    const hit = candidates.find(el => /حماية.*نسخ|نسخ احتياطي|حماية البيانات/i.test(el.textContent||""));
+    if(hit){
+      const box=document.createElement("div");
+      box.id="af-v82-status";
+      box.style.cssText="margin:10px 0;padding:10px;border:1px solid #999;border-radius:10px;font-size:13px;";
+      box.textContent="🔐 حماية البيانات نشطة — النسخ الاحتياطي والتأكيد متاحان قبل العمليات المحمية.";
+      hit.parentNode.insertBefore(box, hit.nextSibling);
+    }
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",addStatus);
+  else addStatus();
 })();
 </script>
 
