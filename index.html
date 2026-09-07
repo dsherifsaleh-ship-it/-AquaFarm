@@ -16,6 +16,16 @@ button.primary{background:#0d5c75;color:#fff;border:0;border-radius:8px;padding:
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:8px;border-bottom:1px solid #e5eaed;text-align:right}th{background:#f5f8f9}.ok{color:#18733d}.warn{color:#9b6511}.bad{color:#a72b2b}.debit{color:#16803a!important;font-weight:700}.credit{color:#c62828!important;font-weight:700}.linkbtn{background:none;border:0;padding:0;text-decoration:underline;cursor:pointer;font-weight:700}
 details{border:1px solid #dbe4e8;border-radius:9px;padding:9px;margin:6px 0}summary{cursor:pointer;font-weight:600}
 .toast{position:fixed;bottom:18px;left:18px;right:18px;max-width:480px;margin:auto;background:#17212b;color:#fff;padding:12px;border-radius:10px;display:none;z-index:20}
+/* آلة حاسبة كبيرة وسهلة الاستخدام على الهاتف — لا تغيّر أي بيانات */
+#calculatorBox{position:relative}
+#calculatorBox .calc{position:fixed;top:82px;left:8px;right:8px;bottom:10px;z-index:15;margin:0;padding:14px;display:flex;flex-direction:column;overflow:auto;border-radius:16px;box-shadow:0 8px 30px #0003}
+.calc h3{margin:0;font-size:20px}
+.calc .row{flex:0 0 auto}
+.calc-display{width:100%;font-size:30px;font-weight:700;text-align:left;direction:ltr;padding:14px 12px;margin:10px 0;border:2px solid #cbd7dd;border-radius:12px;background:#f7fafb;min-height:60px}
+.calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;flex:1;min-height:0}
+.calc-grid button{font-size:22px;font-weight:700;min-height:58px;border:1px solid #cbd7dd;border-radius:12px;background:#fff;touch-action:manipulation}
+@media(max-width:420px){#calculatorBox .calc{top:76px;left:6px;right:6px;bottom:6px;padding:10px}.calc-display{font-size:27px;min-height:56px}.calc-grid{gap:6px}.calc-grid button{font-size:20px;min-height:52px}}
+
 @media(min-width:800px){.formgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.span2{grid-column:span 2}.span3{grid-column:span 3}}
 </style>
 
